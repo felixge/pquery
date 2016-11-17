@@ -1,9 +1,9 @@
 # pquery
 
-This repo contains the example code for my presentation called "DYI Parallel
-Queries"
+This repo contains the example code and slides for my presentation called "DYI
+Parallel Queries"
 
-The code *is not* intended to be used in a library as is. It might be buggy,
+The code *is not* intended to be used as a library as is. It might be buggy,
 there are no docs, and I won't continue developing it.
 
 That being said, I'm releasing it under the PUBLIC DOMAIN. Do with it as you
