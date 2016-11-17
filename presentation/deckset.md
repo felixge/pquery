@@ -6,31 +6,57 @@ slidenumbers: true
 
 ---
 
-> Doesn't 9.6 already support parallel query execution?
+# Problem
+
+* **Got:** Slow reporting query (~10s)
+* **Want:** Good UX (< 1s on latest data)
+
+![inline](single-query.pdf)
 
 ---
 
-# Doesn't 9.6 already support parallel query execution?
+# Solutions
 
-Yes, but ...
+* **Query optimization:** Sometimes not enough. 😢
+* **Cache computation with triggers**: Sometimes not possible. 💔
+* **Postgres 9.6 Parallel Query:** Limited support. 🐥
+* **CitusDB, PostgresXL, ...**: Big commitment. 💰
 
-* Only when driven by sequential scan node 🙈
-* Only works for "supported aggregates" 🤕
-* Doesn't work across multiple machines 😕
-* You might be stuck on an old version of postgres 😱
-
----
-
-> So, I think we can all agree that it would be pretty awesome to skip 4 years
-ahead.
+^ commutative, associative
 
 ---
 
-# [fit] What do we need?
+# [fit] So what can I ~~hack together~~ build in a day?
 
 ---
 
-# A slow aggregate query driven by a index scan node
+# Before: One query
+
+![inline](single-query.pdf)
+
+---
+
+## After: Multiple queries
+
+![inline](multi-query.pdf)
+
+---
+
+# [fit] 😱
+
+---
+
+## After II: Multiple Machines!
+
+![inline](cluster-query.pdf)
+
+---
+
+# Let's look at an example!
+
+---
+
+# Slow example query
 
 ```sql
 SELECT user_id
@@ -52,7 +78,7 @@ HAVING
 
 ---
 
-# A slow aggregate query driven by a index scan node
+# Driven by a index scan node
 
 ```
 GroupAggregate  (...) (...)
@@ -75,20 +101,9 @@ Planning time: 0.564 ms
 Execution time: 9302.230 ms
 ```
 
-
 ---
 
-# A programming language with decent concurrency
-
-**Probably:** Go, Node.js, Java, ...
-
-**Maybe:** Twisted Python, Event Machine (Ruby)
-
-**Perhaps not:** PHP
-
----
-
-# A small modification to your index
+# Index Adjustments
 
 E.g. changing this index:
 
@@ -106,26 +121,26 @@ Allows us to quickly retrieve partition ranges from our index.
 
 ---
 
-# Executing a slightly modified version of our query concurrently
+# Query Adjustments
 
-I.e. instead of execution the previous query with:
+Instead of executing a single query with:
 
 ```go
 WHERE category_id = 1
 ```
 
-We execute e.g. 4 (number of CPUs) queries like this:
+We execute e.g. 4 concurrent queries like this:
 
 ```go
-WHERE category_id = 1 AND user_id % 4 BETWEEN 0 AND 249
-WHERE category_id = 1 AND user_id % 4 BETWEEN 250 AND 499
-WHERE category_id = 1 AND user_id % 4 BETWEEN 500 AND 749
-WHERE category_id = 1 AND user_id % 4 BETWEEN 750 AND 999
+WHERE category_id = 1 AND user_id % 1000 BETWEEN 0 AND 249
+WHERE category_id = 1 AND user_id % 1000 BETWEEN 250 AND 499
+WHERE category_id = 1 AND user_id % 1000 BETWEEN 500 AND 749
+WHERE category_id = 1 AND user_id % 1000 BETWEEN 750 AND 999
 ```
 
 ---
 
-# A temporary table
+# Temporary table
 
 The table needs to have the same columns that the query produces, e.g.:
 
@@ -139,7 +154,7 @@ Then, as results from the concurrent query come in, insert them into the tempora
 
 ---
 
-# And finally, a new query to select from the tmp table
+# Final query against temporary table
 
 Can be as simple as:
 
@@ -147,49 +162,36 @@ Can be as simple as:
 SELECT * FROM results;
 ```
 
-Or in more complex cases even perform some more aggregations of its own.
+Or in more complex cases even perform some more aggregations.
 
 ---
 
-# Benchmark (Toy Example)
+# Performance (Example Query, Mid 2012 4-Core MBP)
 
-On my quad core mid 2012 MBP:
+* **Original query:** ~8.3s
+* **DYI Parallel Query (c=8):** ~2.5s
 
-* Original query: ~8s
-* DYI Parallel Query (c=8): ~2.5s
-
-**3.2x faster 🎉**
+## [fit]  ~3.3x faster 🎉
 
 ---
 
-# Benchmark (Real World)
+# Performance (Report Query, 24 Core IBM Server)
 
-Enterprisy server with 24 cores:
+* **Original query:** ~9s
+* **DYI Parallel Query (c=20):** ~0.9s
 
-* Original query: ~30s
-* DYI Parallel Query (c=24): ~3s
-
-**10x faster 🎉**
+## [fit] ~10x faster 🎉
 
 ---
 
-> This should also scale fairly well across multiple machines.
+# Disclaimer: YMMV
 
 ---
 
-# Alternatives
+![](bg.gif)
 
-* Stored procedures for pre-computing results when possible ❤️
-* CitusDB, Postgres-XL, Redshift, ...
+# [fit] Thanks!
 
----
-
-# Code for the toy example is available at:
-
-[github.com/felixge/pquery]()
-
----
-
-# Get in touch
-
-
+* **Slides & Code (Golang):** [github.com/felixge/pquery]()
+* **Twitter:** @felixge
+* **E-Mail:** pg@felixge.de
